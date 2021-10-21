@@ -1,72 +1,63 @@
 import sys, os, time
 import networkx as nx
 
-def order_graph(g) :
-    """
-    sort the graph according to the succession of nodes
-    """
-    first_node = list(g.nodes)[0] 
-    new_graph = [first_node] 
-    new_graph.append(list(g[first_node])[0]) 
-    while len(new_graph) != g.order() :
-        adjacent = list(g[new_graph[-1]]) 
-        adjacent.remove(new_graph[-2]) 
-        new_graph.append(adjacent[0]) 
-    return new_graph
+def evaluate(d,g):
+    score = 0
+    for node in d:
+        score += g.nodes[node]['weight']
+    return  score
 
-def cycle_dominant(g):
-    dominant_set = set()
-    ordered_graph = order_graph(g)
-    for i in range(0, len(ordered_graph), 3):
-        dominant_set.add(ordered_graph[i])
-    return dominant_set
+def ratio(g, dominating_set, remaining_nodes):
+    rank = {}
+    if dominating_set == {}:
+        for node in g:
+            rank[node] = len(set(g[node]))/g.nodes[node]['weight']
+    else:
+        for node in remaining_nodes:
+            rank[node] = len(set(g[node]) - dominating_set)/g.nodes[node]['weight']
+    return rank
 
-def dominating_set(G, start_with=None):
-    r"""Finds a dominating set for the graph G.
-    A *dominating set* for a graph with node set *V* is a subset *D* of
-    *V* such that every node not in *D* is adjacent to at least one
-    member of *D* [1]_.
-    Parameters
-    ----------
-    G : NetworkX graph
-    start_with : node (default=None)
-        Node to use as a starting point for the algorithm.
-    Returns
-    -------
-    D : set
-        A dominating set for G.
-    Notes
-    -----
-    This function is an implementation of algorithm 7 in [2]_ which
-    finds some dominating set, not necessarily the smallest one.
-    See also
-    --------
-    is_dominating_set
-    References
-    ----------
-    .. [1] https://en.wikipedia.org/wiki/Dominating_set
-    .. [2] Abdol-Hossein Esfahanian. Connectivity Algorithms.
-        http://www.cse.msu.edu/~cse835/Papers/Graph_connectivity_revised.pdf
+def dominant_ratio_per_uncovered_node(g):
     """
-    all_nodes = set(G)
-    if start_with is None:
-        start_with = nx.utils.arbitrary_element(all_nodes)
-    if start_with not in G:
-        raise nx.NetworkXError('node {} is not in G'.format(start_with))
+        A Faire:         
+        - Ecrire une fonction qui retourne le dominant du graphe non dirigé g passé en parametre.
+        - cette fonction doit retourner la liste des noeuds d'un petit dominant de g
+        :param g: le graphe est donné dans le format networkx : https://networkx.github.io/documentation/stable/reference/classes/graph.html
+    """
+    all_nodes = set(g)
+    start_with = sorted(ratio(g,{},{}).items(), key=lambda item: item[1]).pop()[0]
     dominating_set = {start_with}
-    dominated_nodes = set(G[start_with])
+    dominated_nodes = set(g[start_with])
     remaining_nodes = all_nodes - dominated_nodes - dominating_set
     while remaining_nodes:
-        # Choose an arbitrary node and determine its undominated neighbors.
-        v = remaining_nodes.pop()
-        undominated_neighbors = set(G[v]) - dominating_set
-        # Add the node to the dominating set and the neighbors to the
-        # dominated set. Finally, remove all of those nodes from the set
-        # of remaining nodes.
+        v = sorted(ratio(g,dominated_nodes,remaining_nodes).items(), key=lambda item: item[1]).pop()[0]
+        undominated_neighbors = set(g[v]) - dominating_set
         dominating_set.add(v)
         dominated_nodes |= undominated_neighbors
-        remaining_nodes -= undominated_neighbors
+        remaining_nodes -= undominated_neighbors|{v}
     return dominating_set
+
+
+def dominant_ratio_per_remaining_node(g):
+    """
+        A Faire:         
+        - Ecrire une fonction qui retourne le dominant du graphe non dirigé g passé en parametre.
+        - cette fonction doit retourner la liste des noeuds d'un petit dominant de g
+        :param g: le graphe est donné dans le format networkx : https://networkx.github.io/documentation/stable/reference/classes/graph.html
+    """
+    all_nodes = set(g)
+    start_with = sorted(ratio(g,{},{}).items(), key=lambda item: item[1]).pop()[0]
+    dominating_set = {start_with}
+    dominated_nodes = set(g[start_with])
+    remaining_nodes = all_nodes - dominated_nodes - dominating_set
+    while remaining_nodes:
+        v = sorted(ratio(g,dominated_nodes,all_nodes - dominating_set).items(), key=lambda item: item[1]).pop()[0]
+        undominated_neighbors = set(g[v]) - dominating_set
+        dominating_set.add(v)
+        dominated_nodes |= undominated_neighbors
+        remaining_nodes -= undominated_neighbors|{v}
+    return dominating_set
+
 
 def dominant(g):
     """
@@ -75,37 +66,14 @@ def dominant(g):
         - cette fonction doit retourner la liste des noeuds d'un petit dominant de g
         :param g: le graphe est donné dans le format networkx : https://networkx.github.io/documentation/stable/reference/classes/graph.html
     """
-    all_nodes = set(g)
-    adjacent_nb = {} 
-    for node in all_nodes :
-        adjacent_nb[g.degree[node]] = node
-    if len(adjacent_nb) == 1 and (g.number_of_nodes() == g.number_of_edges()) : 
-        return cycle_dominant(g)
-    else :
-        max_adjacent = max(adjacent_nb.keys()) 
-        max_node = adjacent_nb[max_adjacent]        
-        dominating_set = {max_node}
-        not_selected = all_nodes - {max_node} 
-        all_nodes = all_nodes - set(g[max_node]) - {max_node} 
-        g = g.subgraph(not_selected) 
-        while all_nodes :
-            adjacent_nb = {} 
-            for node in not_selected :
-                remaining_adjacent = []
-                for node2 in list(g[node]) :
-                    if node2 in all_nodes :
-                        remaining_adjacent.append(node2)
-                adjacent_nb[len(remaining_adjacent)] = node
-            if len(adjacent_nb) == 1 and (g.number_of_nodes() == g.number_of_edges()) :
-                dominating_set |= cycle_dominant(g)
-                return dominating_set
-            max_adjacent = max(adjacent_nb.keys())
-            max_node = adjacent_nb[max_adjacent]
-            dominating_set.add(max_node)
-            not_selected = not_selected - {max_node}
-            all_nodes = all_nodes - set(g[max_node]) - {max_node}
-            g = g.subgraph(not_selected)
-    return dominating_set
+    d = dominant_ratio_per_uncovered_node(g)
+    d_min = dominant_ratio_per_remaining_node(g)
+    score = evaluate(d,g)
+    score_min = evaluate(d_min,g)
+    if score_min < score:
+        return d_min
+    else:
+        return d
 
 #########################################
 #### Ne pas modifier le code suivant ####
