@@ -114,13 +114,12 @@ def heuristic(S,g):
     return solution
 
 def randomize_dominant(g, proportion_to_delete, rounds):
-    """Construit et déstruit en partie les solutions créées par l'algorithme H2 (qui est le plus rapide) en boucle tout en gardant le meilleur dominant au fur et a mesure."""
+    """randomily reconstruct part of the dominant solution"""
     S = heuristic([],g) 
-    proportion_to_del =  proportion_to_delete
     for i in range(rounds):
         infeasible_S = S.copy()
-        number_of_nodes_to_del = int(proportion_to_del*len(infeasible_S))
-        for k in range(number_of_nodes_to_del):
+        number_of_nodes_to_del = int(proportion_to_delete*len(infeasible_S))
+        for j in range(number_of_nodes_to_del):
             infeasible_S.pop(random.randint(0,len(infeasible_S)-1))
         new_S = heuristic(infeasible_S,g)
         if evaluate(new_S,g) < evaluate(S,g):
