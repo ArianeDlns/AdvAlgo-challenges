@@ -8,3 +8,10 @@ Solve algorithm challenges for the Advances Algorithm course @CentraleSupélec
 python3 dominant.py rep_data_set rep_answer
 ```
 
+## Second challenge:
+
+:bar_chart: Online algorithm - on [codalab](https://codalab.lisn.upsaclay.fr/competitions/51) - clustering dynamique
+
+```bash 
+python3 two_clustering.py rep_data_set rep_answer
+```
