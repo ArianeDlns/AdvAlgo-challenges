@@ -6,15 +6,6 @@ import random
 ##############################################################
 ####                        UTILS                         ####
 ##############################################################
-def _overall_best_cut(sigma,alpha):
-    cost = pd.DataFrame([[x,sigma.count(x)] for x in range(ring_size)], columns=['node','cost'])
-    cost = pd.merge(cost[0:int(ring_size/2)],cost[int(ring_size/2):].reset_index(drop=True),right_index=True,left_index=True)
-    cost['message_cost'] = cost['cost_x'] + cost['cost_y']
-    cost = cost[['node_x','message_cost']]
-    cost['change'] = 2*alpha*pd.concat([abs((ring_size//2)-cost['node_x']), cost['node_x']], axis=1).min(axis=1)
-    cost['added_value'] = cost['change']+cost['message_cost']
-    cost = cost.sort_values('added_value')
-    return(cost['node_x'].iloc[0],cost['added_value'].iloc[0])
 
 def cost_of_change(alpha,ring_size,current_cut,next_cut):
     """Computes the cost of change from one cut to another"""
@@ -35,42 +26,21 @@ def tri_2_arg(list):
 
 def range_in_ring(x,ring_size,range_size):
     """Retourne la liste des 2*range_size nodes du ring adjacents à x"""
-    return [i % ring_size for i in range(x-range_size,x+range_size)]
+    return [i % (ring_size//2) for i in range(x-range_size,x+range_size+1)] # Ici i % ring_size//2 car i est une coupe
     
-def offline_best_cut(sigma,alpha,current_cut,ring_size):
-    current_cut_range = range_in_ring(current_cut,ring_size,3) #range(ring_size//2) for full range
+def best_cut(alpha,current_cut,ring_size, range_size=2):
+    global global_state
+
+    current_cut_range = range_in_ring(current_cut,ring_size,range_size) #range(ring_size//2) for full range
     cost =[[x, 
-            sigma.count(x%ring_size)
-            +sigma.count((x+ring_size//2)%ring_size)
+            global_state['sigma_count'][x]
             +cost_of_change(alpha,ring_size,current_cut,x)] 
            for x in current_cut_range]
-    return tri_2_arg(cost)[0]
+    return tri_2_arg(cost)[0][0]
 
-# variable globale qui peut servir à stocker des informations d'un appel à l'autre si besoin
-global_state = 0 
-
-def online_two_clustering_KNOWING(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
-    """
-        Algorithme qui connait les best coupes initiale pour chacune des instances (il s'agit d'un greedy offline)
-        Sert de baseline
-
-        :param ring_size: taille de l'anneau
-        :param alpha: ...
-        :param current_cut: indice dans range(ring_size//2) représentant la coupe courante
-        :param current_cost: coût courant accumulé depuis le début
-        :param new_msg: indice dans range(ring_size) représentant le noeud de départ du nouveau message
-        :param first_call: booléen qui permet de reconnaitre le premier message  
-        :return l'indice dans range(ring_size//2) représentant la nouvelle coupe     
-    """
-    # known best_cuts
-    best_cuts = [0, 254, 255, 0, 63, 255, 0, 2, 22, 63, 6, 255, 0, 0, 255]
-    # utiliser la variable globale
-    global global_state 
-    # initialiser la variable globale lors du premier appel
-    if first_call:
-        global_state += 1
-    current_cut = best_cuts[int((global_state-1)/10)]
-    return current_cut 
+##############################################################
+####                   ALGORITHMS                         ####
+##############################################################
 
 def online_two_clustering_LAZY(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
     """
@@ -82,31 +52,71 @@ def online_two_clustering_LAZY(ring_size, alpha, current_cut, current_cost, new_
     # initialiser la variable globale lors du premier appel
     if first_call:
         global_state = {}
+        global_state['sigma'] = [new_msg] #liste des messages
+        global_state['sigma_count'] = []  #liste telle que l[index] = nombre de fois où le message index ou index+ring_size//2 est lu
+        for i in range(ring_size//2):
+            global_state['sigma_count'].append(0)
+        global_state['sigma_count'][new_msg%(ring_size//2)]
+    else:
+        global_state['sigma'].append(new_msg)
+        global_state['sigma_count'][new_msg%(ring_size//2)]
+        
     current_cut = -1        
     return current_cut # la coupe/2-clusters courante est conservée, ceci n'est pas une solution optimale
 
-def online_two_clustering_GREEDY(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
+def online_two_clustering_ONLINE(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
     """
-        Algorithme greedy    
+        Algorithme ONLINE    
     """
     # utiliser la variable globale
-    global global_state 
+    global global_state
 
     # initialiser la variable globale lors du premier appel
     if first_call:
-        global_state = [new_msg]
+        global_state = {}
+        global_state['sigma'] = [new_msg] #liste des messages
+        global_state['sigma_count'] = []  #liste telle que l[index] = nombre de fois où le message index ou index+ring_size//2 est lu
+        for i in range(ring_size//2):
+            global_state['sigma_count'].append(0)
+        global_state['sigma_count'][new_msg%(ring_size//2)] += 1
     else:
-        global_state += [new_msg]
+        global_state['sigma'].append(new_msg)
+        global_state['sigma_count'][new_msg%(ring_size//2)] += 1
     
     if new_msg == current_cut:
-        current_cut = offline_best_cut(list(global_state),alpha,current_cut,ring_size)[0]
+        current_cut = best_cut(alpha,current_cut,ring_size, 1) #range de ring_size//4 car on regarde les coupes module ring_size//2  donc ring_size//4 dans chaque sens
+    return current_cut
+
+def online_two_clustering_ONLINE_RANDOM(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
+    """
+        Algorithme ONLINE with a tiny bit of RANDOM   
+    """
+    # utiliser la variable globale
+    global global_state
+
+    # initialiser la variable globale lors du premier appel
+    if first_call:
+        global_state = {}
+        global_state['sigma'] = [new_msg] #liste des messages
+        global_state['sigma_count'] = []  #liste telle que l[index] = nombre de fois où le message index ou index+ring_size//2 est lu
+        for i in range(ring_size//2):
+            global_state['sigma_count'].append(0)
+        global_state['sigma_count'][new_msg%(ring_size//2)] += 1
+    else:
+        global_state['sigma'].append(new_msg)
+        global_state['sigma_count'][new_msg%(ring_size//2)] += 1
+    
+    if new_msg == current_cut:
+        current_cut = best_cut(alpha,current_cut,ring_size, 1)
+        if random.randint(1,500)==1:
+            current_cut = current_cut + 2
     return current_cut 
 
 def online_two_clustering(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
     """
        In use algorithm  
     """
-    current_cut = online_two_clustering_GREEDY(ring_size, alpha, current_cut, current_cost, new_msg, first_call)
+    current_cut = online_two_clustering_ONLINE_RANDOM(ring_size, alpha, current_cut, current_cost, new_msg, first_call)
     return current_cut
 
 ##############################################################
@@ -130,7 +140,7 @@ if __name__=="__main__":
     output_file = open(os.path.join(output_dir, output_filename), 'w')
     scores = []
     
-    for instance_filename in sorted(os.listdir(input_dir)):
+    for instance_filename in tqdm(sorted(os.listdir(input_dir))):
         # importer l'instance depuis le fichier (attention code non robuste)
         instance_file = open(os.path.join(input_dir, instance_filename), "r")
         lines = instance_file.readlines()
