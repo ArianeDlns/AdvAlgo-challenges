@@ -140,7 +140,7 @@ if __name__=="__main__":
     output_file = open(os.path.join(output_dir, output_filename), 'w')
     scores = []
     
-    for instance_filename in tqdm(sorted(os.listdir(input_dir))):
+    for instance_filename in sorted(os.listdir(input_dir)):
         # importer l'instance depuis le fichier (attention code non robuste)
         instance_file = open(os.path.join(input_dir, instance_filename), "r")
         lines = instance_file.readlines()
