@@ -3,6 +3,11 @@ from statistics import mean
 import pandas as pd
 import random
 
+# variable globale qui peut servir à stocker des informations d'un appel à l'autre si besoin
+global_state = {}
+# variable globale p de probabilité 
+p = 0.99
+
 ##############################################################
 ####                        UTILS                         ####
 ##############################################################
@@ -93,6 +98,7 @@ def online_two_clustering_ONLINE_RANDOM(ring_size, alpha, current_cut, current_c
     """
     # utiliser la variable globale
     global global_state
+    global p 
 
     # initialiser la variable globale lors du premier appel
     if first_call:
@@ -104,12 +110,13 @@ def online_two_clustering_ONLINE_RANDOM(ring_size, alpha, current_cut, current_c
         global_state['sigma_count'][new_msg%(ring_size//2)] += 1
     else:
         global_state['sigma'].append(new_msg)
-        global_state['sigma_count'][new_msg%(ring_size//2)] += 1
+        if random.random()>p:
+            global_state['sigma_count'][new_msg%(ring_size//2)] += 1/(1-p)
+        else:
+            global_state['sigma_count'][new_msg%(ring_size//2)] += 1
     
     if new_msg == current_cut:
         current_cut = best_cut(alpha,current_cut,ring_size, 1)
-        if random.randint(1,500)==1:
-            current_cut = current_cut + 2
     return current_cut 
 
 def online_two_clustering(ring_size, alpha, current_cut, current_cost, new_msg, first_call):
